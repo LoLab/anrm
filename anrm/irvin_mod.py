@@ -41,10 +41,15 @@ from pysb.macros import *
 
 Model()
 
+
 Parameter('KF', 1e-6) # Generic association rate constant
+Parameter('KF2', 7e-6) # Generic association rate constant
 Parameter('KR', 1e-3) # Generic dessociation rate constant
+Parameter('KR2', 1) # Generic dessociation rate constant
 Parameter('KC', 1)    # Generic catalytic rate constant
-Parameter('KC2', 10) # Generic catalytic rate constant
+Parameter('KC2', 10)  # Generic catalytic rate constant
+Parameter('KC3', 1e-5)# Generic catalytic rate constant
+Parameter('KC4', 1e-1)# Generic catalytic rate constant
 Parameter('KE', 1e-4) # Generic gene expression rate constant
 
 Parameter('Ka_RIP1_FADD',   1e-7) # Biochemica et Biophysica Acta 1834(2013) 292-300
@@ -55,11 +60,13 @@ Parameter('Kf_Apop_asse',   5e-8) # from Albeck_modules.py
 Parameter('Kf_C3_activa',   5e-9) # from Albeck_modules.py
 Parameter('Kf_Apop_inhi',   2e-6) # from Albeck_modules.py
 Parameter('Kf_Smac_inhi',   7e-6) # from Albeck_modules.py
-Parameter('Kf_C3_activ2',   1e-7) # from Albeck_modules.py
-Parameter('Kf_C3_ubiqui',   2e-6) # from Albeck_modules.py
+Parameter('Kf_C3_activ2',   1e-7) # from Albeck_modules.py 
+Parameter('Kf_C3_ubiqui',   2e-8) # from Albeck_modules.py (Adjusted from 2e-6)
 Parameter('Kc_C3_ubiqui',   1e-1) # from Albeck_modules.py
 Parameter('Kr_PARP_clea',   1e-2) # from Albeck_modules.py
-Parameter('Kf_C8_activ2',   3e-8) # from Albeck_modules.py
+Parameter('Kf_C8_activ2',   7e-6) # It is 3e-8 in the Albeck_modules.py which activate C8 without first dimerizing it.
+Parameter('Kr_C8_activ2',   1) # Since, I added a dimerization step I have to adjust this perameter as well.
+Parameter('Kc_C8_activ2',   1e-1)
 Parameter('Kf_Bax_activ',   1e-7) # from Albeck_modules.py
 
 Parameter('Kf_transloca',   1e-1) # from Lopez_modules...
@@ -67,6 +74,9 @@ Parameter('Kr_transloca',   1e-3)
 
 Parameter('Kc_PARPactiv',   1e-10) # This likely multistep process is modeled via a one-step
                                    # catalysis reaction with slow rate coefficient.
+Parameter('Kc_PARPautoa',   4e-4)
+
+Parameter('Kdeg', 1e-7)
 
 # SECTION ONE: Receptor signalling and Bid Activation
 # ===================================================
@@ -108,12 +118,12 @@ def CD95_to_SecondaryComplex():
     This model also produces Secondary complex, FADD:proC8:c-Flip.
     """
 
-    Parameter('Fas_0'   ,      0) # 3000 corresponds to 50ng/ml Fas
+    Parameter('Fas_0'   ,   3000) # 3000 corresponds to 50ng/ml Fas
     Parameter('CD95_0'  ,    200) # 200 receptors per cell
     Parameter('FADD_0'  ,  1.0e3) # molecules per cell (arbitrarily assigned)1000
     Parameter('flip_L_0',  1.0e4) # molecules per cell
     Parameter('flip_S_0',  1.0e4) # molecules per cell
-    Parameter('proC8_0' ,  2.0e4) # procaspase 8 molecules per cell 20000
+    Parameter('proC8_0' ,  1.5e4) # procaspase 8 molecules per cell 20000
     Parameter('C8_0'    ,      0) # active caspase 8 dimers per cell.
     Parameter('Bar_0'   ,  1.0e3) # Bar molecules per cell.
 
@@ -140,22 +150,28 @@ def CD95_to_SecondaryComplex():
     #   Fas:CD95:FADD:proC8:flip_L <-> Fas:CD95 + FADD:proC8:flip_L
     #   Fas:CD95:FADD:proC8:flip_S <-> Fas:CD95 + FADD:proC8:flip_S
     # ------------------------------------------
-
+    
+    # ==========================================
+    # Regulation (downstream of CD95) of Caspase 8 activity
+    # ------------------------------------------
+    # C8 + BAR <-> C8:BAR
+    # C8 + TRAF2 >> TRAF2
+    
     # -------------DISC assembly----------------
     bind(Fas(blig=None), 'blig',  CD95(blig = None, bDD = None), 'blig', [KF, KR])
     bind(CD95(blig = ANY, bDD = None), 'bDD', FADD(bDD = None, bDED1 =None, bDED2 = None), 'bDD', [KF, KR])
     
-    bind(FADD(bDD = ANY, bDED1 = None, bDED2 = None),'bDED1', proC8(bDED = None), 'bDED', [KF, KR])
+    bind(FADD(bDD = ANY, bDED1 = None, bDED2 = None),'bDED1', proC8(bDED = None), 'bDED', [KF2, KR2])
     # For simplicity allow proC8 to bind FADD before any c-Flip do.
-    bind(FADD(bDD = ANY, bDED2 = None, bDED1 = ANY), 'bDED2', flip_L(bDED = None), 'bDED', [KF, KR])
-    bind(FADD(bDD = ANY, bDED2 = None, bDED1 = ANY), 'bDED2', flip_S(bDED = None), 'bDED', [KF, KR])
+    bind(FADD(bDD = ANY, bDED2 = None, bDED1 = ANY), 'bDED2', flip_L(bDED = None), 'bDED', [KF2, KR2])
+    bind(FADD(bDD = ANY, bDED2 = None, bDED1 = ANY), 'bDED2', flip_S(bDED = None), 'bDED', [KF2, KR2])
     
     
     # procaspase 8 dimerization and activation
-    bind(FADD(bDD = ANY, bDED2 = None, bDED1 = ANY), 'bDED2', proC8(bDED = None), 'bDED', [KF, KR])
+    bind(FADD(bDD = ANY, bDED2 = None, bDED1 = ANY), 'bDED2', proC8(bDED = None), 'bDED', [KF2, KR2])
     DISC_proC8 = CD95(blig=ANY, bDD=ANY) % Fas(blig=ANY) % FADD(bDD=ANY, bDED1=ANY, bDED2=ANY) % proC8(bDED=ANY)%proC8(bDED=ANY)
     DISC = CD95(blig=ANY, bDD=ANY) % Fas(blig=ANY) % FADD(bDD=ANY, bDED1=ANY, bDED2=ANY)
-    Rule('C8_activation', FADD(bDED1 = ANY, bDED2 = ANY)%proC8(bDED=ANY)%proC8(bDED = ANY) >> FADD(bDED1 = None, bDED2 = None) + C8(bC8 = None), KC)
+    Rule('C8_activation', FADD(bDED1 = ANY, bDED2 = ANY)%proC8(bDED=ANY)%proC8(bDED = ANY) >> FADD(bDED1 = None, bDED2 = None) + C8(bC8 = None), KC4)
 
     # caspase 8 inhibition by BAR
     bind(Bar(bC8 = None), 'bC8', C8(bC8 = None), 'bC8', [KF, KR])
@@ -165,23 +181,24 @@ def CD95_to_SecondaryComplex():
 
 def TNFR1_to_SecondaryComplex_monomers():
     """ Declares TNFa, TNFR1, TRADD, CompI, RIP1, A20, CYLD, NEMO and NFkB.
-    Upon activation, TNFR1 gets endocytosed and post translationally modified After Complex I 
-    has released TRADD and RIP1 it possibly gets recycled. This is represented by giving TNFR1 
+    Upon activation, TNFR1 gets endocytosed and post translationally modified After Complex I
+    has released TRADD and RIP1 it possibly gets recycled. This is represented by giving TNFR1
     two states: norm and spent. TRADD has two states. CompI has two states. RIP1 has three states:
     Ub, PO4 and inactive. RIP1 binds FADD, Complex I, Bid-P and RIP3 (see SecondaryComplex_Bid).
-    A20, CYLD and NEMO catalyze transformations of CompI and RIP1, maybe theycan be represented in the rates. 
+    A20, CYLD and NEMO catalyze transformations of CompI and RIP1, maybe be represented in the rates.
     """
+    
     Monomer('TNFa', ['blig'])
     Monomer('TNFR1', ['blig', 'bDD', 'state'], {'state':['norm','spent']})
     Monomer('TRADD', ['bDD1', 'bDD2', 'state'], {'state':['active', 'inactive']})
     Monomer('CompI', ['bDD', 'state'], {'state':['unmod', 'mod']}) #Neglecting RIP1:proC8 binding.. for simplicity.
-    Monomer('RIP1', ['bDD', 'bRHIM', 'state'], {'state':['unmod', 'ub', 'po4', 'trunc']})
+    Monomer('RIP1', ['bDD', 'bRHIM', 'bPARP', 'state'], {'state':['unmod', 'ub', 'po4', 'trunc', 'N']})
     Monomer('NFkB', ['bf'])
 
 def TNFR1_to_SecondaryComplex():
     """Defines the interactoins from TNFR1 ligation to generation of secondary
     complexes as per ANRM 1.0.
-        
+    
     Uses TNFa, TNFR1, TRADD, CompI, RIP1 and NFkB. C8 active dimers and
     their associated parameters to generate rules that describe the ligand/receptor
     binding, FADD recruitment, proC8 and c-flip recruitment, activation of caspase
@@ -190,13 +207,13 @@ def TNFR1_to_SecondaryComplex():
     
     This model converts proC8:proC8 to C8 (active caspase 8 dimer)
     This model also produces Secondary complex, FADD:proC8:c-Flip.
-
+    
     RIP1-Ub recruitment to the CompI is not explicitly state in literature. But, this
     would be required to maintain RIP1 dependent TNFa signalling, if we allowed RIP1
-    ubiquitination (inhibiting Apoptosis/Necrosis) to occur independently of TNFR1. 
+    ubiquitination (inhibiting Apoptosis/Necrosis) to occur independently of TNFR1.
     """
     
-    Parameter('TNFa_0'  ,     0) # 3000 corresponds to 50ng/ml TNFa
+    Parameter('TNFa_0'  ,  3000) # 3000 corresponds to 50ng/ml TNFa
     Parameter('TNFR1_0' ,   200) # 200 receptors per cell
     Parameter('TRADD_0' ,  1000) # molecules per cell (arbitrarily assigned)1000
     Parameter('CompI_0' ,     0) # complexes per cell
@@ -207,27 +224,27 @@ def TNFR1_to_SecondaryComplex():
     Initial(TNFR1(blig=None, bDD=None, state='norm'), TNFR1_0)       # TNFR1
     Initial(TRADD(bDD1=None, bDD2=None, state='inactive'), TRADD_0)  # TRADD
     Initial(CompI(bDD=None, state='unmod'), CompI_0)                 # Complex I
-    Initial(RIP1(bDD=None, bRHIM = None, state = 'ub'), RIP1_0)   # RIP1
+    Initial(RIP1(bDD=None, bRHIM = None, bPARP = None, state = 'ub'), RIP1_0)   # RIP1
     Initial(NFkB(bf=None), NFkB_0)
-
+    
     # =========================================
     # TNFR1 ligation, formation of Complex I and release of RIP1 and TRADD rules
     # -----------------------------------------
     #   TNFa+ TNFR1 <-> TNFa:TNFR1
     #   TNFa:TNFR1 + TRADD <-> TNFa:TNFR1:TRADD >> CompI
     #   CompI + RIP1 <-> CompI:RIP1 >> [active]CompI:RIP1-Ub
-    #   CompI + RIP1-Ub <-> CompI:RIP1-Ub 
+    #   CompI + RIP1-Ub <-> CompI:RIP1-Ub
     
     #   [active]CompI:RIP1-Ub >> NFkB # This reaction will consume the receptor.
     #   [active]CompI:RIP1-Ub >> [active]CompI:RIP1
     #   [active]CompI:RIP1 >> [active]CompI # A20 mediated degradation of RIP1
     #   [active]CompI:RIP1 >> [active]CompI + RIP1
     #   [active]CompI >> [active]TRADD + [norm]TNFR1 #receptor recycle typically distroys the ligand.
-
+    
     #   RIP1 >> RIP1-Ub #These reactions were added because Doug Green reported that FADD and RIP1 bind
     #   RIP1-Ub >> RIP1 #independently of receptor, and FADD:RIP1 formation leads to Caspase 8 activation.
-                        #These reaction decrease the amount of RIP1 by spontaneously ubiquitinating it. 
-
+    #These reaction decrease the amount of RIP1 by spontaneously ubiquitinating it.
+    
     # ------------------------------------------
     
     # -------------Complex I assembly----------------
@@ -238,23 +255,23 @@ def TNFR1_to_SecondaryComplex():
     
     # --------------Complex I - RIP1 Modification-----------------
     bind(CompI(bDD=None, state = 'unmod'), 'bDD', RIP1(bDD=None, bRHIM = None, state='unmod'), 'bDD',[KF, KR])
-    bind(CompI(bDD=None, state = 'unmod'), 'bDD', RIP1(bDD=None, bRHIM = None, state='ub'), 'bDD',[KF, KR]) 
+    bind(CompI(bDD=None, state = 'unmod'), 'bDD', RIP1(bDD=None, bRHIM = None, state='ub'), 'bDD',[KF, KR])
     
     Rule('CompI_Ub', CompI(bDD=ANY, state = 'unmod')%RIP1(bDD=ANY,bRHIM=None, state = 'unmod')>> CompI(bDD=ANY, state = 'mod')%RIP1(bDD=ANY,bRHIM=None, state = 'ub'), KC)
     Rule('CompI_Ub2', CompI(bDD=ANY, state = 'unmod')%RIP1(bDD=ANY,bRHIM=None, state = 'ub')>> CompI(bDD=ANY, state = 'mod')%RIP1(bDD=ANY,bRHIM=None, state = 'ub'), KC)
     Rule('CompI_deUb', CompI(bDD=ANY, state='mod')%RIP1(bDD=ANY, bRHIM=None,  state='ub')>>CompI(bDD=ANY, state='mod')%RIP1(bDD=ANY, bRHIM=None,state='unmod'),KC)
-    Rule('RIP1_deg', CompI(bDD=ANY, state='mod')%RIP1(bDD=ANY, bRHIM=None,  state='unmod') >> CompI(bDD=None, state='mod'),KC2)
-    Rule('RIP1_rel', CompI(bDD=ANY, state='mod')%RIP1(bDD=ANY, bRHIM=None,  state='unmod') >> CompI(bDD=None, state='mod') + RIP1(bDD=None, bRHIM = None,  state = 'unmod'), KC2)
+    Rule('RIP1_deg', CompI(bDD=ANY, state='mod')%RIP1(bDD=ANY, bRHIM=None,  state='unmod') >> CompI(bDD=None, state='mod'),KF)
+    bind(CompI(bDD=None, state='mod'), 'bDD', RIP1(bDD=None, bRHIM = None,  state = 'unmod'), 'bDD', [Parameter('k2', 0), KR])
     Rule('TNFR1_recycle', CompI(bDD=None, state='mod') >> TRADD(bDD1=None, bDD2 = None, state='active') + TNFR1(blig = None, bDD = None, state =  'norm'), KC)
     Rule('NFkB_expression', CompI(bDD=ANY, state = 'mod')%RIP1(bDD=ANY,bRHIM=None, state = 'ub')>> CompI(bDD=ANY, state = 'mod')%RIP1(bDD=ANY,bRHIM=None, state = 'ub') + NFkB(bf=None), KE)
     # --------------RIP1 Ubiquitination---------------------------
-    Rule('RIP1_Ub', RIP1(bDD=None, bRHIM = None, state='unmod')>> RIP1(bDD=None, bRHIM = None, state='ub'), KC2)
-    #Rule('RIP1_deUb', RIP1(bDD=None, bRHIM = None, state='ub')>> RIP1(bDD=None, bRHIM = None, state='unmod'), KR)
-    
+    # Rule('RIP1_Ub', RIP1(bDD=None, bRHIM = None, state='unmod')>> RIP1(bDD=None, bRHIM = None, state='ub'), KC2)
+    # Rule('RIP1_deUb', RIP1(bDD=None, bRHIM = None, state='ub')>> RIP1(bDD=None, bRHIM = None, state='unmod'), KC3)
+
 def SecondaryComplex_to_Bid_monomers():
     Monomer('Bid', ['bf', 'state'], {'state':['unmod', 'po4', 'trunc','M']})
     Monomer('BidK', ['bf']) #unknown Bid-kinase
-    Monomer('RIP3', ['bRHIM', 'state'], {'state':['unmod', 'po4', 'trunc']})
+    Monomer('RIP3', ['bRHIM', 'state'], {'state':['unmod', 'po4', 'trunc', 'N']})
 
 
 def SecondaryComplex_to_Bid():
@@ -313,7 +330,7 @@ def SecondaryComplex_to_Bid():
     Rule('RIP1_truncation_CIIA', RIP_CIIA_proC8 >> CIIA + C8(bC8=None) + RIP1(bDD=None, bRHIM = None, state = 'trunc'), KC)
     Rule('RIP1_truncation_CIIB', RIP_CIIB_proC8 >> FADD(bDD=None, bDED1=None, bDED2=None)+ C8(bC8=None) + RIP1(bDD=None, bRHIM = None, state = 'trunc'), KC)
     
-    catalyze_state(C8(bC8=None), 'bC8', RIP1(bDD=None), 'bRHIM', 'state', 'unmod', 'trunc', [KF, KR, KC])
+    catalyze_state(C8(bC8=None), 'bC8', RIP1(bDD=None), 'bRHIM', 'state', 'unmod', 'trunc', [KF, KR, KC2])
 
     #---Truncation by proC8:cFlip_L---------------------
     Riptosome_FADD = RIP1(bDD=1, bRHIM = None, state = 'unmod')%FADD(bDD=1, bDED1=ANY, bDED2=ANY)%proC8(bDED = ANY)%flip_L(bDED = ANY)
@@ -342,6 +359,9 @@ def SecondaryComplex_to_Bid():
     bind(TRADD(bDD2 = None, state = 'active'),'bDD2', Bid(bf = None, state = 'po4'), 'bf', [KF, KR])
     # Bid-PO4 sequestering RIP1
     bind(RIP1(bDD = None, bRHIM = None, state = 'unmod'), 'bRHIM', Bid(bf = None, state = 'po4'), 'bf', [KF, KR])
+
+    # RIP1 degradation
+    degrade(RIP1(bDD=None, bRHIM = None, state = 'unmod'), Kdeg)
 
 # Shared functions
 # ================
@@ -536,7 +556,7 @@ def apaf1_to_parp_monomers():
     # Csp 3, states: pro, active, ubiquitinated
     Monomer('C3', ['bf', 'state'], {'state':['pro', 'A', 'ub']})
     # Caspase 6, states: pro-, Active
-    Monomer('C6', ['bf', 'state'], {'state':['pro', 'A']})
+    Monomer('C6', ['bf1','bf2', 'state'], {'state':['pro', 'A']})
     Monomer('C9', ['bf']) # Caspase 9
     # PARP, states: Uncleaved, Cleaved
     Monomer('PARP', ['bf', 'state'], {'state':['U', 'C', 'A']})
@@ -569,7 +589,7 @@ def pore_to_parp():
 
     Initial(Apaf(bf=None, state='I'), Apaf_0)
     Initial(C3(bf=None, state='pro'), C3_0)
-    Initial(C6(bf=None, state='pro'), C6_0)
+    Initial(C6(bf1=None, bf2 = None, state='pro'), C6_0)
     Initial(C9(bf=None), C9_0)
     Initial(PARP(bf=None, state='U'), PARP_0)
     Initial(XIAP(bf=None), XIAP_0)
@@ -613,7 +633,11 @@ def pore_to_parp():
     catalyze_state(C8(), 'bC8', C3(),'bf', 'state', 'pro','A', [Kf_C3_activ2, KR, KC])
     catalyze_state(XIAP(), 'bf', C3(), 'bf', 'state', 'A', 'ub', [Kf_C3_ubiqui, KR, Kc_C3_ubiqui])
     catalyze_state(C3(state='A'), 'bf', PARP(state='U'),'bf', 'state', 'U', 'C', [KF, Kr_PARP_clea, KC])
-    catalyze_state(C3(state='A'), 'bf', C6(), 'bf', 'state', 'pro', 'A', [KF, KR, KC])
+    catalyze_state(C3(state='A'), 'bf', C6(bf2 = None), 'bf1', 'state', 'pro', 'A', [KF, KR, KC])
+    bind(C6(bf1 = None, bf2 = None, state = 'A'), 'bf1', proC8(bDED = None), 'bDED', [Kf_C8_activ2, Kr_C8_activ2])
+    bind(C6(bf1 = ANY, bf2 = None, state = 'A'), 'bf2', proC8(bDED = None), 'bDED', [Kf_C8_activ2, Kr_C8_activ2])
+    Rule('C8_activation_byC6', C6(bf1 = ANY, bf2 = ANY, state = 'A')%proC8(bDED = ANY)%proC8(bDED = ANY) >> C8(bC8=None) + C6(bf1=None, bf2=None, state = 'A'), Kc_C8_activ2)
+         
     #catalyze(C6(state='A'), C8(state='pro'), C8(state='A'), [Kf_C8_activ2, KR, KC])
 
 def rip1_to_parp():
@@ -626,7 +650,11 @@ def rip1_to_parp():
     the rules that describe RIP1, RIP3 phosphorylation, and PARP-1 activation.
     """
     Rule('Rip_PO4lation', RIP1(bRHIM=ANY, state = 'unmod')%RIP3(bRHIM=ANY, state='unmod') >> RIP1(bRHIM=ANY, state = 'po4')%RIP3(bRHIM=ANY, state = 'po4'), KC)
-    Rule('PARP_activata', RIP1(bRHIM=ANY, state = 'po4')%RIP3(bRHIM=ANY, state = 'po4') + PARP(bf=None, state='U') >> RIP1(bRHIM=ANY, state = 'po4')%RIP3(bRHIM=ANY, state = 'po4') + PARP(bf=None, state='A'), Kc_PARPactiv)
+    catalyze_state(RIP1(state='po4'), 'bPARP', PARP(), 'bf', 'state', 'U', 'A', [KF, KR, KC])
+    catalyze_state(PARP(state='A'), 'bf', PARP(), 'bf', 'state', 'U', 'A', [KF, KR, Kc_PARPautoa])
+    #Rule('PARP_activata', RIP1(state = 'po4') + PARP(bf=None, state='U') >> RIP1(state = 'po4') + PARP(bf=None, state='A'), Kc_PARPactiv)
+    
+    #Rule('PARP_autoacti', PARP(bf=None, state='A') + PARP(bf=None, state = 'U') >> PARP(bf=None, state='A') + PARP(bf=None, state='A'), Kc_PARPautoa)
         
 CD95_to_SecondaryComplex_monomers()
 CD95_to_SecondaryComplex()
@@ -660,12 +688,13 @@ Observable('TNFR1_TNF', TNFR1(blig=ANY,bDD = ANY))
 Observable('ComplexI', CompI())
 Observable('Obs_RIP1', RIP1(state = 'unmod'))
 Observable('Obs_TRADD', TRADD(state = 'inactive'))
-Observable('Obs_TRADDa', TRADD(state = 'active'))
+Observable('Obs_TRADDa', TRADD(bDD1 = None, state = 'active'))
 Observable('SecondaryComplex', FADD(bDD=None, bDED1 = ANY, bDED2 = ANY))
 Observable('Complex_IIA', TRADD(bDD1=ANY, bDD2=None)%FADD(bDD=ANY, bDED1=ANY, bDED2=ANY))
 Observable('Riptosome1', RIP1(bDD = ANY, bRHIM = None)%FADD(bDD=ANY, bDED1=ANY, bDED2=ANY))
 Observable('Riptosome2', RIP1(bDD = ANY, bRHIM = None)%TRADD(bDD1=ANY, bDD2=ANY)%FADD(bDD=ANY, bDED1=ANY, bDED2=ANY))
 Observable('Obs_RIP1_Ub', RIP1(state = 'ub'))
+Observable('Obs_RIP1_cFlip', FADD(bDD=ANY, bDED1=ANY, bDED2=ANY) % RIP1(bDD=ANY, bRHIM=None, state='unmod') % TRADD(bDD1=ANY, bDD2=ANY, state='active') % flip_S(bDED=ANY) % proC8(bDED=ANY))
 Observable('CompI_RIP1', CompI(bDD=ANY))
 Observable('CompI_mod', CompI(state='mod'))
 Observable('RIP1_Bid', RIP1()%Bid())
@@ -675,15 +704,20 @@ Observable('Bid_Trunc', Bid(state='trunc'))
 Observable('Bid_PO4', Bid(state='po4'))
 Observable('RIP1_Trunc', RIP1(state='trunc'))
 Observable('RIP3_Trunc', RIP3(state='trunc'))
-Observable('Necrosome', RIP1(state = 'po4'))
+Observable('Necrosome', RIP1(bRHIM=ANY, state = 'po4')%RIP3(bRHIM=ANY, state = 'po4'))
 Observable('Obs_proC8', proC8())
 Observable('Obs_C8', C8())
+Observable('Obs_C3ub', C3(state = 'ub'))
 Observable('Obs_C3', C3(state = 'A'))
 Observable('Obs_Apaf', Apaf(state = 'A'))
 Observable('Obs_Apop', Apop())
 Observable('Obs_Cyc', CytoC(bf=None, state='C'))
 Observable('Obs_Smac', Smac(state = 'C'))
+Observable('RIP1_nucl', RIP1(bDD = None, bRHIM=ANY, state = 'N')%RIP3(bRHIM=ANY, state = 'N'))
 Observable('Obs_cPARP', PARP(state='C'))
 Observable('Obs_aPARP', PARP(state='A'))
 Observable('Obs_PARP', PARP(state='U'))
+
+Observable('RIP1_TRADD', RIP1()%TRADD())
+
 
